@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:aop="http://www.springframework.org/schema/aop"
+	xmlns:context="http://www.springframework.org/schema/context" xmlns:tx="http://www.springframework.org/schema/tx"
+	xmlns:mvc="http://www.springframework.org/schema/mvc"
+	xmlns:task="http://www.springframework.org/schema/task"  
+	xsi:schemaLocation="http://www.springframework.org/schema/beans 
+	   		http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+	   		http://www.springframework.org/schema/aop 
+	   		http://www.springframework.org/schema/aop/spring-aop-2.5.xsd
+	   		http://www.springframework.org/schema/context
+	   		http://www.springframework.org/schema/context/spring-context-3.0.xsd
+	   		http://www.springframework.org/schema/tx 
+	   		http://www.springframework.org/schema/tx/spring-tx-2.5.xsd
+	   		http://www.springframework.org/schema/task 
+	   		http://www.springframework.org/schema/task/spring-task-4.0.xsd
+			http://www.springframework.org/schema/mvc 
+			http://www.springframework.org/schema/mvc/spring-mvc-3.0.xsd">
+
+	<!-- 激活spring的注解. -->
+	<context:annotation-config />
+
+	<!-- add share start  end -->
+	<context:component-scan base-package="com.sitech.sessionshare" />
+	<bean id="propertyConfigurer" class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+		<property name="locations">
+			<list>                 
+				<value>classpath:sharedsession.properties</value>              
+			</list>
+		</property>	
+	</bean>
+	
+	<!-- redis配置 start-->
+	<!-- 连接池配置 -->
+	<bean name="genericObjectPoolConfig" class="org.apache.commons.pool2.impl.GenericObjectPoolConfig">
+		<property name="maxWaitMillis" value="${redis.pool.maxWaitMillis}"/> <!-- 获取连接时的最大等待毫秒数(如果设置为阻塞时BlockWhenExhausted),如果超时就抛异常, 小于零:阻塞不确定的时间,  默认-1 -->
+		<property name="maxTotal" value="${redis.pool.maxTotal}" /><!-- 最大连接数 -->
+		<property name="maxIdle" value="${redis.pool.maxIdle}" /><!-- #最大空闲数：空闲链接数大于maxIdle时，将进行回收-->
+		<property name="timeBetweenEvictionRunsMillis" value="${redis.pool.timeBetweenEvictionRunsMillis}" />
+		<property name="minEvictableIdleTimeMillis" value="${redis.pool.minEvictableIdleTimeMillis}" />
+		<property name="testOnBorrow" value="${redis.pool.testOnBorrow}" /> 
+	</bean>
+	
+	
+	<!-- 实例配置 -->
+	<bean id="jedisCluster" class="com.sitech.sessionshare.redis3.JedisClusterClient">
+		<property name="addressConfig">
+			<value>classpath:sharedsession.properties</value>   <!-- 读取配置文件里面的redis地址 -->
+		</property>
+		<property name="timeout" value="${redis.timeout}" />   <!-- redis的连接超时时间 -->
+		<property name="expire" value="${redis.expireSeconds}" />   <!-- redis的key过期时间 -->
+		<property name="maxRedirections" value="6" /> <!-- redis的节点调转次数（实际可以看做是重试次数） -->
+		<property name="genericObjectPoolConfig" ref="genericObjectPoolConfig" /> <!-- 连接池配置-->
+	</bean>
+	<!-- redis配置 end -->
+	
+	
+	<!-- sharedHttpSession配置 start-->
+	<bean id="sharedHttpSessionClient" class="com.sitech.sessionshare.session.SharedHttpSessionClient">
+ 		<property name="jedisCluster" ref="jedisCluster"/>
+	    <property name="encode" value="${redis.encode}"/>
+	</bean>
+	
+	
+	<bean id="sessionSharedManager" class="com.sitech.sessionshare.filter.SessionSharedManager">
+       <property name="session_id_cookie_name" value="${session_id_cookie_name}"/>
+	   <property name="session_id_redis_prefix" value="${session_id_redis_prefix}"/>
+	   <property name="cacheClient" ref="sharedHttpSessionClient"/>
+    </bean> 
+
+	<bean id="sessionSharedFilter" class="com.sitech.sessionshare.filter.SessionSharedFilter">
+       <property name="sessionManager" ref="sessionSharedManager"/>
+    </bean> 
+	<!-- sharedHttpSession配置 end -->
+	
+	<!-- add share config  end -->
+	
+</beans>
+
